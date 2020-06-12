@@ -9,17 +9,10 @@ objects = '/home/nnabizad/code/hierarchical/data/mac/mac_parts'
 
 min_freq = 1
 # glove_embedding = WordEmbeddings('glove')
-glove_embedding = WordEmbeddings('/hri/localdisk/nnabizad/w2v/glove100_word2vec1')
-glovedim = 100
-document_embeddings = DocumentPoolEmbeddings([glove_embedding],
-                                             pooling='max')
-
-
-def onehot(x, len):
-    a = np.eye(len)[x]
-    a[:, 0] = 0
-    return a
-
+# glove_embedding = WordEmbeddings('/hri/localdisk/nnabizad/w2v/glove100_word2vec1')
+# glovedim = 100
+# document_embeddings = DocumentPoolEmbeddings([glove_embedding],
+#                                              pooling='max')
 
 class Mydata():
     def __init__(self, dat, tar, titles=None):
@@ -32,22 +25,22 @@ class Data:
     def __init__(self, obj='mac_tools'):
 
         if obj.endswith('tools'):
-            self.biglist = np.load(tools + '.pkl')
-            self.class_hierarchy = np.load(tools + '_hi.pkl')
+            self.biglist = np.load(tools + '.pkl', allow_pickle=True)
+            self.class_hierarchy = np.load(tools + '_hi.pkl', allow_pickle=True)
         else:
-            self.biglist = np.load(objects + '.pkl')
-            self.class_hierarchy = np.load(objects + '_hi.pkl')
+            self.biglist = np.load(objects + '.pkl', allow_pickle=True)
+            self.class_hierarchy = np.load(objects + '_hi.pkl', allow_pickle=True)
 
         self.noneremove()
         self.reverse_hierarchy = self.inverse_hierachy()
         self.encoddict, self.revencoddict = self.create_encoddic()
         self.level1, self.level2, self.level3 = self.outputindexes()
-        self.manuals, self.labels = self.datagen()
+        self.inputs, self.labels = self.datagen()
 
     def generate_fold(self, seed):
         self.train, self.test = train_test_split(self.biglist, test_size=0.2, random_state=seed)
         X_train, X_test, y_train, y_test = train_test_split(
-            self.manuals,
+            self.inputs,
             self.labels,
             test_size=0.2,
             random_state=seed,
@@ -87,7 +80,7 @@ class Data:
                         xvectors[ind + 1, self.encode(tool)] = 1
                         yvectors[ind] = xvectors[ind + 1]
                         ind += 1
-            yvectors[0, self.encoddict['END']] = 1
+            yvectors[ind, self.encoddict['END']] = 1
             encodedinputs = np.append(encodedinputs, [xvectors], axis=0)
             encodedlabels = np.append(encodedlabels, [yvectors], axis=0)
         return encodedinputs, encodedlabels

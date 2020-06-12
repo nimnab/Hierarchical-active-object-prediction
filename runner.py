@@ -3,11 +3,10 @@ import time
 from keras.models import load_model
 
 from data import Data
-from models import *
+from models import lstm_pred
 from util import output
 from pandas import DataFrame
 
-models = [lstm_pred, lstm_sum, lstm_gru, lstm_sif, lstm_sum_zeroh, lstm_contcat]
 
 
 
@@ -37,7 +36,7 @@ def accuracy(preds, targets, level=3):
 def write_result(hidden_size, dens_size):
     respath = '/home/nnabizad/code/hierarchical/res'
     suffix = 'sig'
-    model = models[0]
+    # model = lstm_pred
     seeds = [15, 896783, 9, 12, 45234]
     elapsed_training = []
     elapsed_testing = []
@@ -48,7 +47,7 @@ def write_result(hidden_size, dens_size):
         mydata.generate_fold(seed)
         modelname = '/hri/localdisk/nnabizad/models/{}_{}_{}'.format(suffix, data, seed)
         start_time = time.time()
-        _, history = model(mydata, modelname, seed, hidden_size, dens_size)
+        _, history = lstm_pred(mydata, modelname, seed, hidden_size, dens_size)
         # trained = load_model(modelname)
         DataFrame(history.history).to_csv(
             '{}/logs/{}_{}.csv'.format(respath, data, seed))
@@ -121,8 +120,8 @@ def save_layer(layerno):
     return 0
 
 if __name__ == '__main__':
-    data = 'mac_tools'
-    # data = 'mac_parts'
+    # data = 'mac_tools'
+    data = 'mac_parts'
     mydata = Data(obj=data)
     write_result(512, 512)
     # save_layer(2)
