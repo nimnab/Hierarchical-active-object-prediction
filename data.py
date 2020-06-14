@@ -1,5 +1,4 @@
 import numpy as np
-from flair.embeddings import WordEmbeddings, DocumentPoolEmbeddings
 from sklearn.model_selection import train_test_split
 
 tools = '/home/nnabizad/code/hierarchical/data/mac/mac_tools'
@@ -13,6 +12,8 @@ min_freq = 1
 # glovedim = 100
 # document_embeddings = DocumentPoolEmbeddings([glove_embedding],
 #                                              pooling='max')
+unknowns = []
+
 
 class Mydata():
     def __init__(self, dat, tar, titles=None):
@@ -22,7 +23,7 @@ class Mydata():
 
 
 class Data:
-    def __init__(self, obj='mac_tools'):
+    def __init__(self, obj='mac_tools', hierarchical = False):
 
         if obj.endswith('tools'):
             self.biglist = np.load(tools + '.pkl', allow_pickle=True)
@@ -31,11 +32,14 @@ class Data:
             self.biglist = np.load(objects + '.pkl', allow_pickle=True)
             self.class_hierarchy = np.load(objects + '_hi.pkl', allow_pickle=True)
 
-        self.noneremove()
+        self.none_remove()
         self.reverse_hierarchy = self.inverse_hierachy()
-        self.encoddict, self.revencoddict = self.create_encoddic()
-        self.level1, self.level2, self.level3 = self.outputindexes()
-        self.inputs, self.labels = self.datagen()
+        if hierarchical:
+            self.encoddict, self.decoddict = self.create_hierarchical_encoddic()
+            self.level1, self.level2, self.level3 = self.hierarchy_indices()
+        else:
+            self.encoddict, self.decoddict = self.create_flat_encoddic()
+        self.inputs, self.labels = self.data_gen(hierarchical)
 
     def generate_fold(self, seed):
         self.train, self.test = train_test_split(self.biglist, test_size=0.2, random_state=seed)
@@ -48,7 +52,7 @@ class Data:
         self.dtrain = Mydata(X_train, y_train)
         self.dtest = Mydata(X_test, y_test)
 
-    def outputindexes(self):
+    def hierarchy_indices(self):
         level1 = []
         level2 = []
         level3 = []
@@ -61,7 +65,7 @@ class Data:
                 level3.append(self.encode(node)[0])
         return level1, level2, level3
 
-    def datagen(self):
+    def data_gen(self, hierarchical=True):
         inputdim = len(self.encoddict)
         lens = []
         for lis in self.biglist:
@@ -77,7 +81,7 @@ class Data:
             for step in manual:
                 if step:
                     for tool in step:
-                        xvectors[ind + 1, self.encode(tool)] = 1
+                        xvectors[ind + 1, self.encode(tool, hierarchical)] = 1
                         yvectors[ind] = xvectors[ind + 1]
                         ind += 1
             yvectors[ind, self.encoddict['END']] = 1
@@ -85,33 +89,52 @@ class Data:
             encodedlabels = np.append(encodedlabels, [yvectors], axis=0)
         return encodedinputs, encodedlabels
 
-    def encode(self, obj):
+    def encode(self, obj, hierarchical= True):
         indexes = []
-        if obj in self.reverse_hierarchy:
-            parent = ''
-            while parent != '<ROOT>':
-                child, parent = self.seprateparent(obj)
-                indexes.append(self.encoddict[child])
-                obj = parent
+        if obj.strip() in self.reverse_hierarchy:
+            if hierarchical:
+                parent = ''
+                while parent != '<ROOT>':
+                    child, parent = self.seprate_parent(obj.strip())
+                    indexes.append(self.encoddict[child])
+                    obj = parent
+            else:
+                indexes.append(self.encoddict[obj])
         else:
+            print('Unknown:',obj)
+            # unknowns.append(obj)
             indexes.append(self.encoddict['UNK'])
         return indexes
 
-    def create_encoddic(self):
+    def create_hierarchical_encoddic(self):
         encoddict = dict()
         encoddict['START'] = 0
         index = 1
         for obj in self.reverse_hierarchy:
-            obj = self.seprateparent(obj)[0]
+            obj = self.seprate_parent(obj)[0]
             if obj not in encoddict:
                 encoddict[obj] = index
                 index += 1
         encoddict['END'] = index
         encoddict['UNK'] = index + 1
-        revencoddict = {v: k for k, v in encoddict.items()}
-        return encoddict, revencoddict
+        decoddict = {v: k for k, v in encoddict.items()}
+        return encoddict, decoddict
 
-    def seprateparent(self, node):
+    def create_flat_encoddic(self):
+        objs = set([i for j in self.biglist for k in j for i in k])
+        encoddict = dict()
+        encoddict['START'] = 0
+        index = 1
+        for obj in objs:
+            if obj in self.reverse_hierarchy and obj not in encoddict:
+                encoddict[obj] = index
+                index += 1
+        encoddict['END'] = index
+        encoddict['UNK'] = index + 1
+        decoddict = {v: k for k, v in encoddict.items()}
+        return encoddict, decoddict
+
+    def seprate_parent(self, node):
         if node in self.reverse_hierarchy:
             return node.replace(self.reverse_hierarchy[node][0], '').strip(), self.reverse_hierarchy[node][0]
 
@@ -129,13 +152,16 @@ class Data:
                             revrese_hirachy[grandchild] = [child, parent, '<ROOT>']
         return revrese_hirachy
 
-    def isleaf(self, node):
-        if node in self.class_hierarchy.keys():
-            return False
-        else:
+    def isleaf(self, node, noparent = False):
+        keys = list(self.class_hierarchy.keys())
+        keys.remove('<ROOT>')
+        if noparent: keys = [self.seprate_parent(i)[0] for i in keys]
+        if not node in keys:
             return True
+        else:
+            return False
 
-    def noneremove(self):
+    def none_remove(self):
         for key in self.class_hierarchy:
             for elem in self.class_hierarchy[key]:
                 if elem.startswith('None'):
@@ -145,6 +171,6 @@ class Data:
 if __name__ == '__main__':
     data = 'mac_tools'
     # data = 'mac_parts'
-    mydata = Data(obj=data)
+    mydata = Data(obj=data, hierarchical=False)
     print()
     # t = Topicmodel(0)
