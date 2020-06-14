@@ -2,8 +2,9 @@ import pickle as pk
 import sys
 
 import numpy as np
+
+
 # from nltk.util import ngrams
-import scipy.stats
 
 
 def save_obj(obj, name):
@@ -16,9 +17,10 @@ def load_obj(name):
         return pk.load(f)
 
 
-
 pth = '/hri/localdisk/nnabizad/'
-def output(input, filename = pth + "corpus.txt", func = print , nonextline=False):
+
+
+def output(input, filename=pth + "corpus.txt", func=print, nonextline=False):
     if func:
         file = None
         end = ''
@@ -28,7 +30,7 @@ def output(input, filename = pth + "corpus.txt", func = print , nonextline=False
             end = '\n'
         elif nonextline:
             func = sys.stdout.write
-        if type(input) == list or type(input)==np.ndarray :
+        if type(input) == list or type(input) == np.ndarray:
             for l in input:
                 func(str(l) + end)
         elif type(input) == dict:
@@ -39,79 +41,66 @@ def output(input, filename = pth + "corpus.txt", func = print , nonextline=False
         if file: file.close()
 
 
+def hierarchical_accuracy(preds, mydata):
+    incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
+    for man in range(len(mydata.dtest.target)):
+        for obj in range(len(mydata.dtest.target[man])):
+            if np.sum(mydata.dtest.target[man][obj]) == 0:
+                break
+            else:
+                lev1 = mydata.level1[np.argmax(mydata.dtest.target[man][obj][mydata.level1])]
+                lev1p = mydata.level1[np.argmax(preds[man][obj][mydata.level1])]
+                if lev1 == lev1p:
+                    correct1 += 1
+                else:
+                    incorrect1 += 1
+                if not mydata.isleaf(mydata.encoddict_hir[lev1p]) or not mydata.isleaf(mydata.encoddict_hir[lev1]):
+                    lev2 = mydata.level2[np.argmax(mydata.dtest.target[man][obj][mydata.level2])]
+                    lev2p = mydata.level2[np.argmax(preds[man][obj][mydata.level2])]
+                    if lev2 == lev2p:
+                        correct2 += 1
+                    else:
+                        incorrect2 += 1
+                    if not mydata.isleaf(mydata.encoddict_hir[lev2p], noparent=True) or not mydata.isleaf(
+                            mydata.encoddict_hir[lev2], noparent=True):
+                        lev3 = mydata.level3[np.argmax(mydata.dtest.target[man][obj][mydata.level3])]
+                        lev3p = mydata.level3[np.argmax(preds[man][obj][mydata.level3])]
+                        if lev3 == lev3p:
+                            correct3 += 1
+                        else:
+                            incorrect3 += 1
+    accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
+            correct3 + incorrect3)
+    print('Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
+    return accu1, accu2, accu3
 
-def mean_confidence_interval(data, confidence=0.95):
-    a = 1.0 * np.array(data)
-    n = len(a)
-    m, se = np.mean(a), scipy.stats.sem(a)
-    h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
-    return m, h
+#
+def flat_accuracy(preds, mydata):
+    incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
+    for man in range(len(mydata.dtest.target)):
+        for obj in range(len(mydata.dtest.target[man])):
+            if np.sum(mydata.dtest.target[man][obj]) == 0:
+                break
+            else:
+                target = np.argmax(mydata.dtest.target[man][obj])
+                pred = np.argmax(preds[man][obj][mydata.level1])
+                if target == pred and target!=mydata.decoddict_flat['UNK']:
+                    correct3 += 1
+                else:
+                    incorrect3 += 1
+                lev2 = mydata.reverse_hierarchy[mydata.decoddict_flat[target]]
+                lev2p = mydata.reverse_hierarchy[mydata.decoddict_flat[pred]]
 
-def upload(file):
-    import dropbox
-    # Create a dropbox object using an API v2 key
-    d = dropbox.Dropbox('YKzgZf7GQKUAAAAAAAAMxT74UQMneilzVkUqpb07fdthP1Vu_rdPgzwZZ_XO_ayK')
-    targetfile = '/Results/' + file.split('/')[-1]
-    # open the file and upload it
-    with open(file, "rb") as f:
-        # upload gives you metadata about the file
-        # we want to overwite any previous version of the file
-        meta = d.files_upload(f.read(), targetfile, mode=dropbox.files.WriteMode("overwrite"))
-
-dicscores = dict()
-
-def ngram_simscore(text1, text2, landa=None):
-    n = max(len(text1), len(text2))
-    score = 0
-    summ = sum([(i+1) for i in range(n)])
-    for i in range(n):
-        if (' '.join(text1), i + 1) in dicscores:
-            seq1tupes = dicscores[(' '.join(text1), i + 1)]
-        else:
-            seq1tupes = get_tuples_nosentences(text1, i + 1)
-            dicscores[(' '.join(text1), i + 1)] = seq1tupes
-
-        if (' '.join(text2), i + 1) in dicscores:
-            seq2tupes = dicscores[(' '.join(text2), i + 1)]
-        else:
-            seq2tupes = get_tuples_nosentences(text2, i + 1)
-            dicscores[(' '.join(text2), i + 1)] = seq2tupes
-        score += (i+1)/summ*(len(seq1tupes & seq2tupes))
-    return score
-
-def goal_simscore(tups, text2):
-    tupleslenn = max([len(i) for i in tups])
-    n = max(tupleslenn, len(text2))
-    score = 0
-    for i in range(n):
-        # if (' '.join(text1), i + 1) in dicscores:
-        #     seq1tupes = dicscores[(' '.join(text1), i + 1)]
-        # else:
-        #     seq1tupes = get_tuples_nosentences(text1, i + 1)
-        #     dicscores[(' '.join(text1), i + 1)] = seq1tupes
-
-        if (' '.join(text2), i + 1) in dicscores:
-            seq2tupes = dicscores[(' '.join(text2), i + 1)]
-        else:
-            seq2tupes = get_tuples_nosentences(text2, i + 1)
-            dicscores[(' '.join(text2), i + 1)] = seq2tupes
-        score += ((i+1) * (len(tups & seq2tupes)))
-    return score
-
-def get_tuples_nosentences(txt, n):
-    """Get tuples that ignores all punctuation (including sentences)."""
-    if not txt: return None
-    txt = [i for i in txt if len(i)>0]
-    ng = ngrams(txt, n)
-    return set(ng)
-
-
-def get_tuples_all(txt):
-    """Get tuples that ignores all punctuation (including sentences)."""
-    if not txt: return None
-    ng = set()
-    txt = [i for i in txt if len(i)>0]
-    for n in range(len(txt)):
-        ngram = set(ngrams(txt, n+1))
-        ng = ng.union(ngram)
-    return ng
+                if len(lev2) == 3 and len(lev2p) == 3:
+                        if lev2p[0] == lev2[0] and target!=mydata.decoddict_flat['UNK']:
+                            correct1 +=1
+                        else:
+                            incorrect1 +=1
+                        if lev2p[1] == lev2[1] and target!=mydata.decoddict_flat['UNK']:
+                            correct2 +=1
+                        else:
+                            incorrect2 +=1
+    accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
+            correct3 + incorrect3)
+    print('Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
+    return accu1, accu2, accu3

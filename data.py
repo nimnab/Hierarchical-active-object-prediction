@@ -23,7 +23,7 @@ class Mydata():
 
 
 class Data:
-    def __init__(self, obj='mac_tools', hierarchical = False):
+    def __init__(self, obj='mac_tools'):
 
         if obj.endswith('tools'):
             self.biglist = np.load(tools + '.pkl', allow_pickle=True)
@@ -34,18 +34,22 @@ class Data:
 
         self.none_remove()
         self.reverse_hierarchy = self.inverse_hierachy()
-        if hierarchical:
-            self.encoddict, self.decoddict = self.create_hierarchical_encoddic()
-            self.level1, self.level2, self.level3 = self.hierarchy_indices()
-        else:
-            self.encoddict, self.decoddict = self.create_flat_encoddic()
-        self.inputs, self.labels = self.data_gen(hierarchical)
 
-    def generate_fold(self, seed):
+        self.encoddict_hir, self.decoddict_hir = self.create_hierarchical_encoddic()
+        self.level1, self.level2, self.level3 = self.hierarchy_indices()
+        self.encoddict_flat, self.decoddict_flat = self.create_flat_encoddic()
+        self.inputs_hir, self.labels_hir = self.data_gen(hierarchical=True)
+        self.inputs_flat, self.labels_flat = self.data_gen(hierarchical=False)
+
+    def generate_fold(self, seed, hierarchical):
         self.train, self.test = train_test_split(self.biglist, test_size=0.2, random_state=seed)
+        if hierarchical:
+            inp, outp = self.inputs_hir, self.labels_hir
+        else:
+            inp, outp = self.inputs_flat, self.labels_flat
         X_train, X_test, y_train, y_test = train_test_split(
-            self.inputs,
-            self.labels,
+            inp,
+            outp,
             test_size=0.2,
             random_state=seed,
         )
@@ -57,16 +61,17 @@ class Data:
         level2 = []
         level3 = []
         for node in self.reverse_hierarchy:
-            if len(self.reverse_hierarchy[node])==1:
-                level1.append(self.encoddict[node])
-            elif len(self.reverse_hierarchy[node])==2:
+            if len(self.reverse_hierarchy[node]) == 1:
+                level1.append(self.encoddict_hir[node])
+            elif len(self.reverse_hierarchy[node]) == 2:
                 level2.append(self.encode(node)[0])
             else:
                 level3.append(self.encode(node)[0])
         return level1, level2, level3
 
-    def data_gen(self, hierarchical=True):
-        inputdim = len(self.encoddict)
+    def data_gen(self, hierarchical):
+        encoddict = self.encoddict_hir if hierarchical else self.encoddict_flat
+        inputdim = len(encoddict)
         lens = []
         for lis in self.biglist:
             lens.append(sum([len(j) for j in lis]))
@@ -76,7 +81,7 @@ class Data:
         for manual in self.biglist:
             xvectors = np.zeros((maxlen, inputdim))
             yvectors = np.zeros((maxlen, inputdim))
-            xvectors[0, self.encoddict['START']] = 1
+            xvectors[0, encoddict['START']] = 1
             ind = 0
             for step in manual:
                 if step:
@@ -84,26 +89,43 @@ class Data:
                         xvectors[ind + 1, self.encode(tool, hierarchical)] = 1
                         yvectors[ind] = xvectors[ind + 1]
                         ind += 1
-            yvectors[ind, self.encoddict['END']] = 1
+            yvectors[ind, encoddict['END']] = 1
             encodedinputs = np.append(encodedinputs, [xvectors], axis=0)
             encodedlabels = np.append(encodedlabels, [yvectors], axis=0)
         return encodedinputs, encodedlabels
 
-    def encode(self, obj, hierarchical= True):
-        indexes = []
-        if obj.strip() in self.reverse_hierarchy:
+    def encode(self, obj, hierarchical=True):
+        indexes =  []
+        obj = obj.strip()
+        if obj in self.reverse_hierarchy:
             if hierarchical:
                 parent = ''
                 while parent != '<ROOT>':
-                    child, parent = self.seprate_parent(obj.strip())
-                    indexes.append(self.encoddict[child])
+                    child, parent = self.seprate_parent(obj)
+                    indexes.append(self.encoddict_hir[child])
                     obj = parent
             else:
-                indexes.append(self.encoddict[obj])
+                indexes.append(self.encoddict_flat[obj])
         else:
-            print('Unknown:',obj)
-            # unknowns.append(obj)
-            indexes.append(self.encoddict['UNK'])
+            if hierarchical:
+                objname = obj.split()
+                for i in range(len(objname)-1,0,-1):
+                    _obj = ' '.join(objname[-i:])
+                    print(_obj)
+                    if _obj in self.reverse_hierarchy:
+                        indexes.append(self.encoddict_hir['UNK'])
+                        parent = ''
+                        while parent != '<ROOT>':
+                            child, parent = self.seprate_parent(_obj)
+                            indexes.append(self.encoddict_hir[child])
+                            _obj = parent
+                        break
+                if not indexes:
+                    indexes = [self.encoddict_hir['UNK']]
+                    print('Unknown:', obj)
+            else:
+                indexes= self.encoddict_flat['UNK']
+                print('Unknown:', obj)
         return indexes
 
     def create_hierarchical_encoddic(self):
@@ -121,7 +143,7 @@ class Data:
         return encoddict, decoddict
 
     def create_flat_encoddic(self):
-        objs = set([i for j in self.biglist for k in j for i in k])
+        objs = set([i.strip() for j in self.biglist for k in j for i in k])
         encoddict = dict()
         encoddict['START'] = 0
         index = 1
@@ -152,7 +174,7 @@ class Data:
                             revrese_hirachy[grandchild] = [child, parent, '<ROOT>']
         return revrese_hirachy
 
-    def isleaf(self, node, noparent = False):
+    def isleaf(self, node, noparent=False):
         keys = list(self.class_hierarchy.keys())
         keys.remove('<ROOT>')
         if noparent: keys = [self.seprate_parent(i)[0] for i in keys]
@@ -171,6 +193,6 @@ class Data:
 if __name__ == '__main__':
     data = 'mac_tools'
     # data = 'mac_parts'
-    mydata = Data(obj=data, hierarchical=False)
+    mydata = Data(obj=data)
     print()
     # t = Topicmodel(0)

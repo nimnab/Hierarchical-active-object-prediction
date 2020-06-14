@@ -55,8 +55,8 @@ def lstm_pred(mydata, modelname, seed, hidden_size, dens2_size):
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=50)
     mc = ModelCheckpoint(modelname.format(seed), monitor='val_categorical_accuracy', mode='max', verbose=1,
                          save_best_only=True)
-    h=model.fit(mydata.dtrain.input, mydata.dtrain.target, validation_data=(mydata.dtest.input, mydata.dtest.target),
-              # validation_split=0.1,
+    h=model.fit(mydata.dtrain.input, mydata.dtrain.target,
+              validation_split=0.1,
               epochs=1000, batch_size=10, verbose=2, callbacks=[es, mc])
     # make a prediction
     # np.concatenate(mydata.dtest.input, axis=0)
