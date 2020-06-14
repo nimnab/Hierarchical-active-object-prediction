@@ -84,20 +84,19 @@ def flat_accuracy(preds, mydata):
                 break
             else:
                 target = np.argmax(mydata.dtest.target[man][obj])
-                pred = np.argmax(preds[man][obj][mydata.level1])
-                if target == pred and target != mydata.decoddict_flat['UNK']:
+                pred = np.argmax(preds[man][obj])
+                if target == pred and target != mydata.encoddict_flat['UNK']:
                     correct3 += 1
                 else:
                     incorrect3 += 1
-
-                lev2 = mydata.reverse_hierarchy[mydata.decoddict_flat[target]]
-                lev2p = mydata.reverse_hierarchy[mydata.decoddict_flat[pred]]
-                if len(lev2) == 3 and len(lev2p) == 3:
-                    if lev2p[0] == lev2[0] and target != mydata.decoddict_flat['UNK']:
+                target_parents = mydata.reverse_hierarchy[mydata.decoddict_flat[target]]
+                pred_parents = mydata.reverse_hierarchy[mydata.decoddict_flat[pred]]
+                if len(target_parents) == 3 and len(pred_parents) == 3:
+                    if pred_parents[0] == target_parents[0]:
                         correct1 += 1
                     else:
                         incorrect1 += 1
-                    if lev2p[1] == lev2[1] and target != mydata.decoddict_flat['UNK']:
+                    if pred_parents[1] == target_parents[1]:
                         correct2 += 1
                     else:
                         incorrect2 += 1

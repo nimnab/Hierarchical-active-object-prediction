@@ -100,11 +100,11 @@ def write_result_flat(hidden_size, dens_size):
 
 
 if __name__ == '__main__':
-    # data = 'mac_tools'
-    data = 'mac_parts'
-    mydata = Data(obj=data)
-    save_obj(mydata, '/hri/localdisk/nnabizad/' + data)
-    # mydata = load_obj('/hri/localdisk/nnabizad/'+data)
-    write_result_hir(512, 512)
-    # write_result_flat(512, 512)
+    data = 'mac_tools'
+    # data = 'mac_parts'
+    # mydata = Data(obj=data)
+    # save_obj(mydata, '/hri/localdisk/nnabizad/' + data)
+    mydata = load_obj('/hri/localdisk/nnabizad/'+data)
+    # write_result_hir(512, 512)
+    write_result_flat(512, 512)
     # save_layer(2)
