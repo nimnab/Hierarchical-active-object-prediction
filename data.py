@@ -137,8 +137,8 @@ class Data:
             if obj not in encoddict:
                 encoddict[obj] = index
                 index += 1
-        encoddict['END'] = index
-        encoddict['UNK'] = index + 1
+        # encoddict['END'] = index
+        # encoddict['UNK'] = index + 1
         decoddict = {v: k for k, v in encoddict.items()}
         return encoddict, decoddict
 
@@ -172,6 +172,9 @@ class Data:
                     for grandchild in self.class_hierarchy[child]:
                         if self.isleaf(grandchild):
                             revrese_hirachy[grandchild] = [child, parent, '<ROOT>']
+        revrese_hirachy['START'] = ['<ROOT>']
+        revrese_hirachy['END'] = ['<ROOT>']
+        revrese_hirachy['UNK'] = ['<ROOT>']
         return revrese_hirachy
 
     def isleaf(self, node, noparent=False):
