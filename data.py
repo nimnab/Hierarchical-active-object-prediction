@@ -63,7 +63,8 @@ class Data:
         for node in self.reverse_hierarchy:
             if len(self.reverse_hierarchy[node]) == 1:
                 level1.append(self.encoddict_hir[node])
-            elif len(self.reverse_hierarchy[node]) == 2:
+            elif len(self.reverse_hierarchy[node]) == 2 and node in self.class_hierarchy:
+                print(node)
                 level2.append(self.encode(node)[0])
             else:
                 level3.append(self.encode(node)[0])
