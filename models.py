@@ -48,7 +48,7 @@ def lstm_pred(mydata, modelname, seed, hidden_size, dens2_size):
     model.add(TimeDistributed(Dense(dens2_size, activation='relu')))
     # model.add(Dropout(dr))
     model.add(Dense(obj_number, activation='softmax'))
-    model.compile(loss='binary_crossentropy', optimizer=Adam(lr=0.001), metrics=['categorical_accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(lr=0.001), metrics=['categorical_accuracy'])
     # tool_freq = [y for x in mydata.train[counter] for y in x]
 
     # class_weights = class_weight.compute_class_weight('balanced',np.unique(mydata.alltools), mydata.alltools)

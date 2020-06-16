@@ -55,13 +55,13 @@ def flat_accuracy(preds, mydata):
                     incorrect3 += 1
                 target_parents = mydata.reverse_hierarchy[mydata.decoddict_flat[target]]
                 pred_parents = mydata.reverse_hierarchy[mydata.decoddict_flat[pred]]
-                if len(target_parents) > 1 and len(pred_parents) > 1:
-                    if pred_parents[0] == target_parents[0]:
+                if len(pred_parents) > 1:
+                    if len(target_parents) > 1 and pred_parents[0] == target_parents[0]:
                         correct1 += 1
                     else:
                         incorrect1 += 1
-                if len(target_parents) > 2 and len(pred_parents) > 2:
-                    if pred_parents[1] == target_parents[1]:
+                if len(pred_parents) > 2:
+                    if len(target_parents) > 2 and pred_parents[1] == target_parents[1]:
                         correct2 += 1
                     else:
                         incorrect2 += 1
@@ -69,7 +69,7 @@ def flat_accuracy(preds, mydata):
                 #     print(mydata.decoddict_flat[target])
     accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
             correct3 + incorrect3)
-    print('Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
+    print('Flat accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
     return accu1, accu2, accu3
 
 def hierarchical_accuracy(preds, mydata):
@@ -85,15 +85,14 @@ def hierarchical_accuracy(preds, mydata):
                     correct1 += 1
                 else:
                     incorrect1 += 1
-                if not mydata.isleaf(mydata.decoddict_hir[lev1p]) or not mydata.isleaf(mydata.decoddict_hir[lev1]):
+                if not mydata.isleaf(mydata.decoddict_hir[lev1p]):
                     lev2 = mydata.level2[np.argmax(mydata.dtest.target[man][obj][mydata.level2])]
                     lev2p = mydata.level2[np.argmax(preds[man][obj][mydata.level2])]
                     if lev2 == lev2p:
                         correct2 += 1
                     else:
                         incorrect2 += 1
-                    if not mydata.isleaf(mydata.decoddict_hir[lev2p], noparent=True) or not mydata.isleaf(
-                            mydata.decoddict_hir[lev2], noparent=True):
+                    if not mydata.isleaf(mydata.decoddict_hir[lev2p], noparent=True):
                         lev3 = mydata.level3[np.argmax(mydata.dtest.target[man][obj][mydata.level3])]
                         lev3p = mydata.level3[np.argmax(preds[man][obj][mydata.level3])]
                         if lev3 == lev3p:
@@ -102,7 +101,7 @@ def hierarchical_accuracy(preds, mydata):
                             incorrect3 += 1
     accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
             correct3 + incorrect3)
-    print('Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
+    print('Hierarchical accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
     return accu1, accu2, accu3
 
 def hierarchical_accuracy_beam(preds, mydata, beam=3):

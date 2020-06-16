@@ -27,7 +27,7 @@ def load_obj(name):
 
 def write_result_hir(hidden_size, dens_size):
     respath = '/home/nnabizad/code/hierarchical/res'
-    suffix = 'sig'
+    suffix = 'hir'
     seeds = [15, 896783, 9, 12, 45234]
     accu_seeds = np.zeros([3, len(seeds)])
     filename = '{}/{}_{}'.format(respath, suffix, data)
@@ -41,7 +41,7 @@ def write_result_hir(hidden_size, dens_size):
         # DataFrame(history.history).to_csv(
         #     '{}/logs/{}_{}.csv'.format(respath, data, seed))
         predictions = trained.predict(mydata.dtest.input)
-        accu1, accu2, accu3 = hierarchical_accuracy_beam(predictions, mydata)
+        accu1, accu2, accu3 = hierarchical_accuracy(predictions, mydata)
         output([accu1, accu2, accu3], filename=filename, func='write')
 
 def write_result_flat(hidden_size, dens_size):
@@ -67,9 +67,9 @@ def write_result_flat(hidden_size, dens_size):
 if __name__ == '__main__':
     data = 'mac_tools'
     # data = 'mac_parts'
-    mydata = Data(obj=data)
-    save_obj(mydata, '/hri/localdisk/nnabizad/' + data)
-    # mydata = load_obj('/hri/localdisk/nnabizad/'+data)
+    # mydata = Data(obj=data)
+    # save_obj(mydata, '/hri/localdisk/nnabizad/' + data)
+    mydata = load_obj('/hri/localdisk/nnabizad/'+data)
     # write_result_hir(512, 512)
-    # write_result_flat(512, 512)
+    write_result_flat(512, 512)
     # save_layer(2)
