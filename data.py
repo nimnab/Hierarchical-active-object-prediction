@@ -36,38 +36,46 @@ class Data:
         self.reverse_hierarchy = self.inverse_hierachy()
 
         self.encoddict_hir, self.decoddict_hir = self.create_hierarchical_encoddic()
-        self.level1, self.level2, self.level3 = self.hierarchy_indices()
+        # self.level1, self.level2, self.level3 = self.hierarchy_indices()
         self.encoddict_flat, self.decoddict_flat = self.create_flat_encoddic()
         self.inputs_hir, self.labels_hir = self.data_gen(hierarchical=True)
         self.inputs_flat, self.labels_flat = self.data_gen(hierarchical=False)
 
-    def generate_fold(self, seed, hierarchical):
+    def generate_fold(self, seed):
         self.train, self.test = train_test_split(self.biglist, test_size=0.2, random_state=seed)
-        if hierarchical:
-            inp, outp = self.inputs_hir, self.labels_hir
-        else:
-            inp, outp = self.inputs_flat, self.labels_flat
+        hinp, houtp = self.inputs_hir, self.labels_hir
+        inp, outp = self.inputs_flat, self.labels_flat
         X_train, X_test, y_train, y_test = train_test_split(
             inp,
             outp,
             test_size=0.2,
             random_state=seed,
         )
+        hX_train, hX_test, hy_train, hy_test = train_test_split(
+            hinp,
+            houtp,
+            test_size=0.2,
+            random_state=seed,
+        )
+
         self.dtrain = Mydata(X_train, y_train)
         self.dtest = Mydata(X_test, y_test)
+        self.hdtrain = Mydata(hX_train, hy_train)
+        self.hdtest = Mydata(hX_test, hy_test)
 
     def hierarchy_indices(self):
-        level1 = []
-        level2 = []
-        level3 = []
+        level1 = dict()
+        level2 = dict()
+        level3 = set()
         for node in self.reverse_hierarchy:
-            if len(self.reverse_hierarchy[node]) == 1:
-                level1.append(self.encoddict_hir[node])
-            elif len(self.reverse_hierarchy[node]) == 2 and node in self.class_hierarchy:
-                print(node)
-                level2.append(self.encode(node)[0])
-            else:
-                level3.append(self.encode(node)[0])
+            if node not in self.class_hierarchy: #leaf nodes
+                inds = self.encode(node)
+                level3.add(inds[0])
+                if len(inds)==2:
+                    level1 = adddict(level1, inds[1], inds[0])
+                if len(inds)==3:
+                    level1 = adddict(level1, inds[2], inds[1])
+                    level2 = adddict(level2, inds[1], inds[0])
         return level1, level2, level3
 
     def data_gen(self, hierarchical):
@@ -96,55 +104,98 @@ class Data:
         return encodedinputs, encodedlabels
 
     def encode(self, obj, hierarchical=True):
+        obj = self.fix(obj)
         indexes =  []
         obj = obj.strip()
         if obj in self.reverse_hierarchy:
             if hierarchical:
-                parent = ''
-                while parent != '<ROOT>':
-                    child, parent = self.seprate_parent(obj)
-                    indexes.append(self.encoddict_hir[child])
-                    obj = parent
+                if obj in self.encoddict_hir:
+                    indexes = [self.encoddict_hir[obj]]
+                else:
+                    parent = ''
+                    while parent != '<ROOT>':
+                        child, parent = self.seprate_parent(obj)
+                        indexes.append(self.encoddict_hir[child])
+                        obj = parent
             else:
                 indexes.append(self.encoddict_flat[obj])
         else:
             if hierarchical:
+                print('OOV:', obj)
                 objname = obj.split()
                 for i in range(len(objname)-1,0,-1):
                     _obj = ' '.join(objname[-i:])
-                    print(_obj)
+                    # print(_obj)
                     if _obj in self.reverse_hierarchy:
                         indexes.append(self.encoddict_hir['UNK'])
-                        parent = ''
-                        while parent != '<ROOT>':
-                            child, parent = self.seprate_parent(_obj)
-                            indexes.append(self.encoddict_hir[child])
-                            _obj = parent
-                        break
+                        if _obj in self.encoddict_hir:
+                            indexes = [self.encoddict_hir[_obj]]
+                        else:
+                            parent = ''
+                            while parent != '<ROOT>':
+                                child, parent = self.seprate_parent(_obj)
+                                indexes.append(self.encoddict_hir[child])
+                                _obj = parent
+                            break
                 if not indexes:
                     indexes = [self.encoddict_hir['UNK']]
-                    print('Unknown:', obj)
+                    print('Unknown hir:', obj)
             else:
                 indexes= self.encoddict_flat['UNK']
-                print('Unknown:', obj)
+                print('Unknown flat:', obj)
         return indexes
+
+    def seprate_parent(self, node):
+        if node in self.reverse_hierarchy:
+            return node.replace(self.reverse_hierarchy[node][0], '').strip(), self.reverse_hierarchy[node][0]
 
     def create_hierarchical_encoddic(self):
         encoddict = dict()
+        level1 =  set()
+        level2 = set()
+        leafs = set()
         encoddict['START'] = 0
         index = 1
         for obj in self.reverse_hierarchy:
-            obj = self.seprate_parent(obj)[0]
-            if obj not in encoddict:
-                encoddict[obj] = index
-                index += 1
-        # encoddict['END'] = index
-        # encoddict['UNK'] = index + 1
+            obj = self.fix(obj)
+            mod, head = self.seprate_parent(obj)
+            if obj not in self.class_hierarchy: #leafs
+                if mod not in encoddict:
+                    encoddict[mod] = index
+                    index +=1
+                    leafs.add(encoddict[mod])
+                elif encoddict[mod] in level1 or encoddict[mod] in level2:
+                    encoddict[obj] = index
+                    index +=1
+                    leafs.add(encoddict[obj])
+            else: #none leafs
+                if len(self.reverse_hierarchy[obj]) == 1:
+                    if mod not in encoddict:
+                        encoddict[mod] = index
+                        index += 1
+                        level1.add(encoddict[mod])
+                    elif encoddict[mod] in level2:
+                        encoddict[obj] = index
+                        index += 1
+                        level1.add(encoddict[obj])
+                elif len(self.reverse_hierarchy[obj]) == 2:
+                    if mod not in encoddict:
+                        encoddict[mod] = index
+                        index += 1
+                        level2.add(encoddict[mod])
+                    elif encoddict[mod] in level1:
+                        encoddict[obj] = index
+                        index += 1
+                        level2.add(encoddict[obj])
         decoddict = {v: k for k, v in encoddict.items()}
         return encoddict, decoddict
 
+    def seprate_parent(self, node):
+        if node in self.reverse_hierarchy:
+            return node.replace(self.reverse_hierarchy[node][0], '').strip(), self.reverse_hierarchy[node][0]
+
     def create_flat_encoddic(self):
-        objs = set([i.strip() for j in self.biglist for k in j for i in k])
+        objs = set([self.fix(i).strip() for j in self.biglist for k in j for i in k])
         encoddict = dict()
         encoddict['START'] = 0
         index = 1
@@ -157,9 +208,7 @@ class Data:
         decoddict = {v: k for k, v in encoddict.items()}
         return encoddict, decoddict
 
-    def seprate_parent(self, node):
-        if node in self.reverse_hierarchy:
-            return node.replace(self.reverse_hierarchy[node][0], '').strip(), self.reverse_hierarchy[node][0]
+
 
     def inverse_hierachy(self):
         # collect samples for non leafs
@@ -182,10 +231,10 @@ class Data:
         keys = list(self.class_hierarchy.keys())
         keys.remove('<ROOT>')
         if noparent: keys = [self.seprate_parent(i)[0] for i in keys]
-        if not node in keys:
-            return True
-        else:
+        if node in keys:
             return False
+        else:
+            return True
 
     def none_remove(self):
         for key in self.class_hierarchy:
@@ -193,10 +242,36 @@ class Data:
                 if elem.startswith('None'):
                     self.class_hierarchy[key].remove(elem)
 
+    def fix(self, obj):
+        if obj.endswith('airport bluetooth') and len(obj.split())>2:
+            obj = 'airport bluetooth ' + obj.split()[0]
+        if obj == 'lift fan':
+            obj = 'fan'
+        if obj == '3.5mm 3.3mm screw':
+            obj = '3.3mm screw'
+        if obj == '4mm screw nut':
+            obj = '4mm nut'
+        if 'entire' in obj:
+            obj = obj.replace('entire', '').strip()
+        if 'broken or damaged' in obj:
+            obj = obj.replace('broken or damaged', '').strip()
+        if obj == 'fan or placeholder':
+            obj = 'fan'
+        if obj == 'screw standoff':
+            obj = 'standoff screw'
 
+
+        return obj
+
+def adddict(dic, key, val):
+    if key in dic:
+        dic[key].add(val)
+    else:
+        dic[key] = {val}
+    return dic
 if __name__ == '__main__':
-    data = 'mac_tools'
-    # data = 'mac_parts'
+    # data = 'mac_tools'
+    data = 'mac_parts'
     mydata = Data(obj=data)
     print()
     # t = Topicmodel(0)

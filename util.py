@@ -1,10 +1,10 @@
-import pickle as pk
 import sys
 
 import numpy as np
 
 
 # from nltk.util import ngrams
+import pickle as pk
 
 
 def save_obj(obj, name):
@@ -19,6 +19,11 @@ def load_obj(name):
 
 pth = '/hri/localdisk/nnabizad/'
 
+
+def maxdic(dic):
+    v = list(dic.values())
+    k = list(dic.keys())
+    return k[v.index(max(v))]
 
 def output(input, filename=pth + "corpus.txt", func=print, nonextline=False):
     if func:
@@ -67,87 +72,75 @@ def flat_accuracy(preds, mydata):
                         incorrect2 += 1
                 # else:
                 #     print(mydata.decoddict_flat[target])
-    accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
-            correct3 + incorrect3)
+    accu1, accu2, accu3 = correct1 /(correct1+incorrect1) , correct2/(correct2+incorrect2) , correct3/(correct3+incorrect3)
     print('Flat accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
     return accu1, accu2, accu3
 
-def hierarchical_accuracy(preds, mydata):
+def hierarchical_accuracy(preds, mydata, beam=1):
     incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
-    for man in range(len(mydata.dtest.target)):
-        for obj in range(len(mydata.dtest.target[man])):
-            if np.sum(mydata.dtest.target[man][obj]) == 0:
+    for man in range(len(mydata.hdtest.target)):
+        for obj in range(len(mydata.hdtest.target[man])):
+            if np.sum(mydata.hdtest.target[man][obj]) == 0:
                 break
             else:
-                lev1 = mydata.level1[np.argmax(mydata.dtest.target[man][obj][mydata.level1])]
-                lev1p = mydata.level1[np.argmax(preds[man][obj][mydata.level1])]
-                if lev1 == lev1p:
-                    correct1 += 1
-                else:
-                    incorrect1 += 1
-                if not mydata.isleaf(mydata.decoddict_hir[lev1p]):
-                    lev2 = mydata.level2[np.argmax(mydata.dtest.target[man][obj][mydata.level2])]
-                    lev2p = mydata.level2[np.argmax(preds[man][obj][mydata.level2])]
-                    if lev2 == lev2p:
-                        correct2 += 1
+                firstpreds = dict()
+                secondpreds = dict()
+                finalpreds = dict()
+                rootinds = [mydata.encoddict_hir[i] for i in mydata.class_hierarchy['<ROOT>']]
+                rootpred_args = np.argsort(-preds[man][obj][rootinds])
+                for ind in rootpred_args[:beam]:
+                    rootpred = rootinds[ind]
+                    if mydata.isleaf(mydata.decoddict_hir[rootpred]):
+                        finalpreds[rootpred] =  preds[man][obj][rootpred]
                     else:
-                        incorrect2 += 1
-                    if not mydata.isleaf(mydata.decoddict_hir[lev2p], noparent=True):
-                        lev3 = mydata.level3[np.argmax(mydata.dtest.target[man][obj][mydata.level3])]
-                        lev3p = mydata.level3[np.argmax(preds[man][obj][mydata.level3])]
-                        if lev3 == lev3p:
-                            correct3 += 1
-                        else:
-                            incorrect3 += 1
-    accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
-            correct3 + incorrect3)
-    print('Hierarchical accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
-    return accu1, accu2, accu3
+                        firstpreds[rootpred] = preds[man][obj][rootpred]
+                        inds_1 = [mydata.encode(i)[0]  for i in mydata.class_hierarchy[mydata.decoddict_hir[rootpred]]]
+                        args_1 = np.argsort(-preds[man][obj][inds_1])
+                        for arg in args_1[:beam]:
+                            pred_1 = inds_1[arg]
+                            full_obj = mydata.decoddict_hir[pred_1] + ' ' + mydata.decoddict_hir[rootpred]
+                            if mydata.isleaf(full_obj):
+                                finalpreds[pred_1] = preds[man][obj][pred_1]
+                            else:
+                                secondpreds[rootpred] = preds[man][obj][pred_1] * preds[man][obj][rootpred]
+                                inds_2 = [mydata.encode(i)[0] for i in
+                                           mydata.class_hierarchy[full_obj]]
+                                args_2 = np.argsort(-preds[man][obj][inds_2])
+                                for arg2 in args_2[:beam]:
+                                    pred_2 = inds_2[arg2]
+                                    finalpreds[pred_2] = preds[man][obj][pred_2]
 
-def hierarchical_accuracy_beam(preds, mydata, beam=3):
-    incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
-    for man in range(len(mydata.dtest.target)):
-        for obj in range(len(mydata.dtest.target[man])):
-            if np.sum(mydata.dtest.target[man][obj]) == 0:
-                break
-            else:
-                lev1 = mydata.level1[np.argmax(mydata.dtest.target[man][obj][mydata.level1])]
-                lev1p = mydata.level1[np.argmax(preds[man][obj][mydata.level1])]
-                if lev1 == lev1p:
-                    correct1 += 1
+                trueargs = np.argwhere(mydata.hdtest.target[man][obj] ==1)
+                if firstpreds: first = maxdic(firstpreds)
+                if secondpreds: sec = maxdic(secondpreds)
+                final = maxdic(finalpreds)
+                if final in trueargs:
+                    correct3+=1
                 else:
-                    incorrect1 += 1
-                args = np.argsort(-preds[man][obj][mydata.level1])
-                level2s = dict()
-                level3s = dict()
-                for _obj in args[:beam]:
-                    objcandidate = mydata.decoddict_hir[mydata.level1[_obj]]
-                    objpred = preds[man][obj][mydata.level1[_obj]]
-                    if objcandidate in mydata.class_hierarchy:
-                        children = mydata.class_hierarchy[objcandidate]
-                        for child in children[:]:
-                            ch, _ = mydata.encode(child)
-                            childpred = preds[man][obj][ch]
-                            level2s[ch] = childpred * objpred
-                            if child in mydata.class_hierarchy:
-                                grandchildren = mydata.class_hierarchy[child]
-                                for grandchild in grandchildren[:]:
-                                    ch, _, _ = mydata.encode(grandchild)
-                                    level3s[ch] = preds[man][obj][ch] * childpred * objpred
-                if level2s:
-                    lev2 = max(level2s.keys(), key=(lambda k: level2s[k]))
-                    if lev2 == mydata.level2[np.argmax(mydata.dtest.target[man][obj][mydata.level2])]:
+                    incorrect3+=1
+                if len(trueargs) >1 and firstpreds:
+                    if first in trueargs:
+                        correct1+=1
+                    else:
+                        incorrect1+=1
+                if len(trueargs)>2 and secondpreds:
+                    if sec in trueargs:
                         correct2 +=1
                     else:
                         incorrect2 +=1
-                if level3s:
-                    lev3 = max(level3s.keys(), key=(lambda k: level3s[k]))
-                    if lev3 == mydata.level3[np.argmax(mydata.dtest.target[man][obj][mydata.level3])]:
-                        correct3 +=1
-                    else:
-                        incorrect3 +=1
 
-    accu1, accu2, accu3 = correct1 / (correct1 + incorrect1), correct2 / (correct2 + incorrect2), correct3 / (
-            correct3 + incorrect3)
-    print('Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
+    accu1, accu2, accu3 = correct1 /(correct1+incorrect1) , correct2/(correct2+incorrect2) , correct3/(correct3+incorrect3)
+    print('Hierarchical accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
     return accu1, accu2, accu3
+
+
+if __name__ == '__main__':
+    respath = '/home/nnabizad/code/hierarchical/res'
+    # data = 'mac_tools'
+    data = 'mac_parts'
+    # mydata = Data(obj=data)
+    # save_obj(mydata, '/hri/localdisk/nnabizad/' + data)
+    mydata = load_obj('/hri/localdisk/nnabizad/mac_parts')
+    mydata.generate_fold(15)
+    preds = mydata.hdtest.target
+    hierarchical_accuracy(preds, mydata, 20)
