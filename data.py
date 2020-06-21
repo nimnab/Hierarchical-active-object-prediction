@@ -32,7 +32,6 @@ class Data:
             self.biglist = np.load(objects + '.pkl', allow_pickle=True)
             self.class_hierarchy = np.load(objects + '_hi.pkl', allow_pickle=True)
 
-        self.none_remove()
         self.reverse_hierarchy = self.inverse_hierachy()
 
         self.encoddict_hir, self.decoddict_hir = self.create_hierarchical_encoddic()
@@ -104,7 +103,7 @@ class Data:
         return encodedinputs, encodedlabels
 
     def encode(self, obj, hierarchical=True):
-        obj = self.fix(obj)
+        # obj = self.fix(obj)
         indexes =  []
         obj = obj.strip()
         if obj in self.reverse_hierarchy:
@@ -157,7 +156,7 @@ class Data:
         encoddict['START'] = 0
         index = 1
         for obj in self.reverse_hierarchy:
-            obj = self.fix(obj)
+            # obj = self.fix(obj)
             mod, head = self.seprate_parent(obj)
             if obj not in self.class_hierarchy: #leafs
                 if mod not in encoddict:
@@ -190,12 +189,9 @@ class Data:
         decoddict = {v: k for k, v in encoddict.items()}
         return encoddict, decoddict
 
-    def seprate_parent(self, node):
-        if node in self.reverse_hierarchy:
-            return node.replace(self.reverse_hierarchy[node][0], '').strip(), self.reverse_hierarchy[node][0]
 
     def create_flat_encoddic(self):
-        objs = set([self.fix(i).strip() for j in self.biglist for k in j for i in k])
+        objs = set([i.strip() for j in self.biglist for k in j for i in k])
         encoddict = dict()
         encoddict['START'] = 0
         index = 1
@@ -242,26 +238,7 @@ class Data:
                 if elem.startswith('None'):
                     self.class_hierarchy[key].remove(elem)
 
-    def fix(self, obj):
-        if obj.endswith('airport bluetooth') and len(obj.split())>2:
-            obj = 'airport bluetooth ' + obj.split()[0]
-        if obj == 'lift fan':
-            obj = 'fan'
-        if obj == '3.5mm 3.3mm screw':
-            obj = '3.3mm screw'
-        if obj == '4mm screw nut':
-            obj = '4mm nut'
-        if 'entire' in obj:
-            obj = obj.replace('entire', '').strip()
-        if 'broken or damaged' in obj:
-            obj = obj.replace('broken or damaged', '').strip()
-        if obj == 'fan or placeholder':
-            obj = 'fan'
-        if obj == 'screw standoff':
-            obj = 'standoff screw'
 
-
-        return obj
 
 def adddict(dic, key, val):
     if key in dic:
@@ -269,6 +246,7 @@ def adddict(dic, key, val):
     else:
         dic[key] = {val}
     return dic
+
 if __name__ == '__main__':
     # data = 'mac_tools'
     data = 'mac_parts'

@@ -76,7 +76,7 @@ def flat_accuracy(preds, mydata):
     print('Flat accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
     return accu1, accu2, accu3
 
-def hierarchical_accuracy(preds, mydata, beam=1):
+def hierarchical_accuracy(preds, mydata, beam=1, threshhold = 0.5):
     incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
     for man in range(len(mydata.hdtest.target)):
         for obj in range(len(mydata.hdtest.target[man])):
@@ -98,41 +98,86 @@ def hierarchical_accuracy(preds, mydata, beam=1):
                         args_1 = np.argsort(-preds[man][obj][inds_1])
                         for arg in args_1[:beam]:
                             pred_1 = inds_1[arg]
-                            full_obj = mydata.decoddict_hir[pred_1] + ' ' + mydata.decoddict_hir[rootpred]
-                            if mydata.isleaf(full_obj):
-                                finalpreds[pred_1] = preds[man][obj][pred_1]
-                            else:
-                                secondpreds[rootpred] = preds[man][obj][pred_1] * preds[man][obj][rootpred]
-                                inds_2 = [mydata.encode(i)[0] for i in
-                                           mydata.class_hierarchy[full_obj]]
-                                args_2 = np.argsort(-preds[man][obj][inds_2])
-                                for arg2 in args_2[:beam]:
-                                    pred_2 = inds_2[arg2]
-                                    finalpreds[pred_2] = preds[man][obj][pred_2]
+                            if preds[man][obj][pred_1]>=threshhold:
+                                full_obj = mydata.decoddict_hir[pred_1] + ' ' + mydata.decoddict_hir[rootpred]
+                                if mydata.isleaf(full_obj):
+                                    finalpreds[pred_1] = preds[man][obj][pred_1]
+                                else:
+                                    secondpreds[pred_1] = preds[man][obj][pred_1] * preds[man][obj][rootpred]
+                                    inds_2 = [mydata.encode(i)[0] for i in
+                                               mydata.class_hierarchy[full_obj]]
+                                    args_2 = np.argsort(-preds[man][obj][inds_2])
+                                    for arg2 in args_2[:beam]:
+                                        pred_2 = inds_2[arg2]
+                                        if preds[man][obj][pred_2]>threshhold:
+                                            finalpreds[pred_2] = preds[man][obj][pred_2]
 
                 trueargs = np.argwhere(mydata.hdtest.target[man][obj] ==1)
+                if finalpreds:
+                    final = maxdic(finalpreds)
+                else:
+                    final = np.argmax(preds[man][obj])
                 if firstpreds: first = maxdic(firstpreds)
                 if secondpreds: sec = maxdic(secondpreds)
-                final = maxdic(finalpreds)
                 if final in trueargs:
                     correct3+=1
                 else:
+                    # print(mydata.decoddict_hir[final], preds[man][obj][final], [mydata.decoddict_hir[i[0]] for i in trueargs])
+                    # print('best:' , mydata.decoddict_hir[np.argmax(preds[man][obj])])
+                    # pos  = np.argwhere(preds[man][obj]>= 0.5)
+                    # print('morethan0.5: ',[mydata.decoddict_hir[i[0]] for i in pos])
+                    # print()
                     incorrect3+=1
-                if len(trueargs) >1 and firstpreds:
-                    if first in trueargs:
+                if len(trueargs)>1:
+                    if firstpreds and first in trueargs:
                         correct1+=1
-                    else:
-                        incorrect1+=1
-                if len(trueargs)>2 and secondpreds:
-                    if sec in trueargs:
+                else:
+                    incorrect1+=1
+                if len(trueargs)>2:
+                    if secondpreds and sec in trueargs:
                         correct2 +=1
-                    else:
-                        incorrect2 +=1
+                else:
+                    incorrect2 +=1
 
     accu1, accu2, accu3 = correct1 /(correct1+incorrect1) , correct2/(correct2+incorrect2) , correct3/(correct3+incorrect3)
-    print('Hierarchical accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
+    # print('Hierarchical accuracy Level1:{} , level2:{}, level3:{}'.format(accu1, accu2, accu3))
     return accu1, accu2, accu3
 
+def hir_level_accuracy(preds, mydata, level):
+    incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
+    for man in range(len(mydata.hdtest.target)):
+        for obj in range(len(mydata.hdtest.target[man])):
+            if np.sum(mydata.hdtest.target[man][obj]) == 0:
+                break
+            else:
+                lev = [mydata.encoddict_hir[i] for i in mydata.reverse_hierarchy if len(mydata.reverse_hierarchy[i]) == 1]
+                pred = np.argmax(preds[man][obj][lev])
+                target = np.argmax(mydata.hdtest.target[man][obj][lev])
+                if pred == target:
+                    correct1 +=1
+                else:
+                    incorrect1 +=1
+    print(correct1/(incorrect1+correct1))
+
+def flat_level_accuracy(preds, mydata, level):
+    incorrect1 = incorrect2 = incorrect3 = correct1 = correct2 = correct3 = 0
+    for man in range(len(mydata.hdtest.target)):
+        for obj in range(len(mydata.dtest.target[man])):
+            if np.sum(mydata.dtest.target[man][obj]) == 0:
+                break
+            else:
+                # lev1 = [mydata.encoddict_flat[i] for i in mydata.reverse_hierarchy if len(mydata.reverse_hierarchy[i]) == 1]
+                pred = np.argmax(preds[man][obj])
+                target = np.argmax(mydata.dtest.target[man][obj])
+                if len(mydata.reverse_hierarchy[mydata.decoddict_flat[pred]])>level:
+                    pred = mydata.reverse_hierarchy[mydata.decoddict_flat[pred]][-(level+1)]
+                if len(mydata.reverse_hierarchy[mydata.decoddict_flat[target]])>level:
+                    target = mydata.reverse_hierarchy[mydata.decoddict_flat[target]][-(level+1)]
+                if pred == target:
+                    correct1 +=1
+                else:
+                    incorrect1 +=1
+    print(correct1/(incorrect1+correct1))
 
 if __name__ == '__main__':
     respath = '/home/nnabizad/code/hierarchical/res'
